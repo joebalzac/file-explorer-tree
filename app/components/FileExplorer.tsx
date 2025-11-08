@@ -26,7 +26,9 @@ export function FileExplorer() {
   const [tree, setTree] = useState<FileTreeNode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['root']));
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(['root'])
+  );
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,31 +70,6 @@ export function FileExplorer() {
     if (!selectedPath) {
       return;
     }
-
-    let cancelled = false;
-
-    async function refreshTree() {
-      try {
-        const response = await fetch(`/api/file-tree?selected=${encodeURIComponent(selectedPath)}`);
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-        const payload: FileTreeNode = await response.json();
-        if (!cancelled) {
-          setTree(payload);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.warn('Refresh attempt failed', err);
-        }
-      }
-    }
-
-    refreshTree();
-
-    return () => {
-      cancelled = true;
-    };
   }, [selectedPath]);
 
   const selectedNode = findNodeByPath(tree, selectedPath);
@@ -102,12 +79,13 @@ export function FileExplorer() {
 
     if (target.type === 'folder') {
       setExpanded((prev) => {
+        const newSet = new Set(prev);
         if (prev.has(target.path)) {
-          prev.delete(target.path);
+          newSet.delete(target.path);
         } else {
-          prev.add(target.path);
+          newSet.add(target.path);
         }
-        return prev;
+        return newSet;
       });
     }
 
@@ -119,11 +97,19 @@ export function FileExplorer() {
     <div className="file-explorer">
       <div className="file-explorer__tree">
         <header className="file-explorer__toolbar">
-          <p className="file-explorer__hint">Enhance this view with keyboard type-ahead support.</p>
+          <p className="file-explorer__hint">
+            Enhance this view with keyboard type-ahead support.
+          </p>
         </header>
 
-        <div className="file-explorer__body" role="tree" aria-label="Project files">
-          {loading && <p className="file-explorer__status">Loading file tree…</p>}
+        <div
+          className="file-explorer__body"
+          role="tree"
+          aria-label="Project files"
+        >
+          {loading && (
+            <p className="file-explorer__status">Loading file tree…</p>
+          )}
           {error && !loading && (
             <p className="file-explorer__status file-explorer__status--error">
               Failed to load files: {error}
@@ -150,7 +136,9 @@ export function FileExplorer() {
                   aria-expanded={isFolder ? isExpanded : undefined}
                   className={[
                     'file-explorer__node',
-                    isFolder ? 'file-explorer__node--folder' : 'file-explorer__node--file',
+                    isFolder
+                      ? 'file-explorer__node--folder'
+                      : 'file-explorer__node--file',
                     isSelected ? 'file-explorer__node--selected' : '',
                   ]
                     .filter(Boolean)
@@ -165,16 +153,22 @@ export function FileExplorer() {
         </div>
       </div>
 
-      <aside className="file-explorer__details" aria-label="Selected item details">
+      <aside
+        className="file-explorer__details"
+        aria-label="Selected item details"
+      >
         {selectedNode ? (
           <div>
-            <h2 className="file-explorer__details-title">{selectedNode.name}</h2>
+            <h2 className="file-explorer__details-title">
+              {selectedNode.name}
+            </h2>
             <dl className="file-explorer__details-grid">
               <dt>Path</dt>
               <dd>{selectedNode.path}</dd>
             </dl>
             <p className="file-explorer__next-step">
-              Flesh this panel out with richer insights derived from the data source.
+              Flesh this panel out with richer insights derived from the data
+              source.
             </p>
           </div>
         ) : (
@@ -205,7 +199,10 @@ function flattenTree(root: FileTreeNode, expanded: Set<string>): VisibleNode[] {
   return result;
 }
 
-function findNodeByPath(root: FileTreeNode | null, path: string | null): FileTreeNode | null {
+function findNodeByPath(
+  root: FileTreeNode | null,
+  path: string | null
+): FileTreeNode | null {
   if (!root || !path) {
     return null;
   }
@@ -214,7 +211,9 @@ function findNodeByPath(root: FileTreeNode | null, path: string | null): FileTre
     return root;
   }
 
-  const stack: FileTreeNode[] = Array.isArray(root.children) ? [...root.children] : [];
+  const stack: FileTreeNode[] = Array.isArray(root.children)
+    ? [...root.children]
+    : [];
 
   while (stack.length > 0) {
     const current = stack.pop();
