@@ -99,14 +99,11 @@ export function FileExplorer() {
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const { key, ctrlKey, metaKey, altKey } = event;
 
-    // Only handle normal printable characters (no modifiers)
     if (key.length !== 1 || ctrlKey || metaKey || altKey) return;
 
     event.preventDefault();
-
     const nextQuery = (typeahead + key).toLowerCase();
 
-    // Reset buffer after a short pause (VS Code-style)
     if (typeaheadTimeoutRef.current !== null) {
       window.clearTimeout(typeaheadTimeoutRef.current);
     }
@@ -117,7 +114,6 @@ export function FileExplorer() {
 
     setTypeahead(nextQuery);
 
-    // Start from current selection, wrap through list
     const startIndex = selectedPath
       ? visibleNodes.findIndex((item) => item.node.path === selectedPath)
       : -1;
