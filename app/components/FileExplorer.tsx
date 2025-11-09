@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type FileTreeNode = {
   type: 'file' | 'folder';
@@ -30,6 +30,9 @@ export function FileExplorer() {
     () => new Set(['root'])
   );
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+
+  const [typeahead, setTypeahead] = useState<string>('');
+  const typeaheadTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +96,46 @@ export function FileExplorer() {
     setTree((prev) => (prev ? { ...prev } : prev));
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const { key, ctrlKey, metaKey, altKey } = event;
+
+    // Only handle normal printable characters (no modifiers)
+    if (key.length !== 1 || ctrlKey || metaKey || altKey) return;
+
+    event.preventDefault();
+
+    const nextQuery = (typeahead + key).toLowerCase();
+
+    // Reset buffer after a short pause (VS Code-style)
+    if (typeaheadTimeoutRef.current !== null) {
+      window.clearTimeout(typeaheadTimeoutRef.current);
+    }
+    typeaheadTimeoutRef.current = window.setTimeout(() => {
+      setTypeahead('');
+      typeaheadTimeoutRef.current = null;
+    }, 400);
+
+    setTypeahead(nextQuery);
+
+    // Start from current selection, wrap through list
+    const startIndex = selectedPath
+      ? visibleNodes.findIndex((item) => item.node.path === selectedPath)
+      : -1;
+
+    const ordered = [
+      ...visibleNodes.slice(startIndex + 1),
+      ...visibleNodes.slice(0, startIndex + 1),
+    ];
+
+    const match = ordered.find((item) =>
+      item.node.name.toLowerCase().startsWith(nextQuery)
+    );
+
+    if (match) {
+      setSelectedPath(match.node.path);
+    }
+  };
+
   return (
     <div className="file-explorer">
       <div className="file-explorer__tree">
@@ -106,6 +149,8 @@ export function FileExplorer() {
           className="file-explorer__body"
           role="tree"
           aria-label="Project files"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
         >
           {loading && (
             <p className="file-explorer__status">Loading file tree…</p>
