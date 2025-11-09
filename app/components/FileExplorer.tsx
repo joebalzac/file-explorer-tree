@@ -80,6 +80,14 @@ export function FileExplorer() {
     el.scrollIntoView({ block: 'nearest' });
   }, [selectedPath, visibleNodes]);
 
+  const countFiles = (node: FileTreeNode): number => {
+    if (node.type === 'file') return 1;
+    return (node.children ?? []).reduce(
+      (sum, child) => sum + countFiles(child),
+      0
+    );
+  };
+
   const selectedNode = findNodeByPath(tree, selectedPath);
 
   const onNodeClick = (item: VisibleNode) => {
@@ -170,37 +178,42 @@ export function FileExplorer() {
             !error &&
             visibleNodes.map((item) => {
               const { node, depth } = item;
+              const fileTotal = countFiles(node);
               const isFolder = node.type === 'folder';
               const isExpanded = expanded.has(node.path);
               const isSelected = node.path === selectedPath;
 
               return (
-                <button
-                  key={node.path}
-                  type="button"
-                  role="treeitem"
-                  aria-expanded={isFolder ? isExpanded : undefined}
-                  className={[
-                    'file-explorer__node',
-                    isFolder
-                      ? 'file-explorer__node--folder'
-                      : 'file-explorer__node--file',
-                    isSelected ? 'file-explorer__node--selected' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  style={{ paddingLeft: INDENT + depth * INDENT }}
-                  onClick={() => onNodeClick(item)}
-                  ref={(el) => {
-                    if (el) {
-                      nodeRefs.current[node.path] = el;
-                    } else {
-                      delete nodeRefs.current[node.path];
-                    }
-                  }}
-                >
-                  {isFolder ? (isExpanded ? '📂' : '📁') : '📄'} {node.name}
-                </button>
+                <div key={node.path} className="file-explorer__node--wrapper">
+                  <button
+                    type="button"
+                    role="treeitem"
+                    aria-expanded={isFolder ? isExpanded : undefined}
+                    className={[
+                      'file-explorer__node',
+                      isFolder
+                        ? 'file-explorer__node--folder'
+                        : 'file-explorer__node--file',
+                      isSelected ? 'file-explorer__node--selected' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    style={{ paddingLeft: INDENT + depth * INDENT }}
+                    onClick={() => onNodeClick(item)}
+                    ref={(el) => {
+                      if (el) {
+                        nodeRefs.current[node.path] = el;
+                      } else {
+                        delete nodeRefs.current[node.path];
+                      }
+                    }}
+                  >
+                    <span>
+                      {isFolder ? (isExpanded ? '📂' : '📁') : '📄'} {node.name}
+                    </span>
+                    <span className="file-explorer__badge">{fileTotal}</span>
+                  </button>
+                </div>
               );
             })}
         </div>
