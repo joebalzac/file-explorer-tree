@@ -129,7 +129,7 @@ main {
 .file-explorer__node--selected {
   background-color: #0e639c;
   color: #fff;
-  animation: shimmerFade 4s ease-out;
+  animation: shimmerFade 1s ease-out;
   color: #fff;
 }
 

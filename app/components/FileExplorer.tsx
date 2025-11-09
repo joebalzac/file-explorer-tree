@@ -34,6 +34,7 @@ export function FileExplorer() {
   const [typeahead, setTypeahead] = useState<string>('');
   const typeaheadTimeoutRef = useRef<number | null>(null);
   const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const treeContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,13 +72,22 @@ export function FileExplorer() {
   const visibleNodes = tree ? flattenTree(tree, expanded) : [];
 
   useEffect(() => {
-    if (!selectedPath) return;
+    if (!loading && !error && tree) {
+      treeContainerRef.current?.focus();
+    }
+  }, [loading, error, tree]);
+
+  useEffect(() => {
+    if (!selectedPath) {
+      treeContainerRef.current?.focus();
+      return;
+    }
 
     const el = nodeRefs.current[selectedPath];
-    if (!el) return;
-
-    el.focus({ preventScroll: true });
-    el.scrollIntoView({ block: 'nearest' });
+    if (el) {
+      el.scrollIntoView({ block: 'nearest' });
+    }
+    treeContainerRef.current?.focus();
   }, [selectedPath, visibleNodes]);
 
   const countFiles = (node: FileTreeNode): number => {
@@ -111,6 +121,45 @@ export function FileExplorer() {
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const { key, ctrlKey, metaKey, altKey } = event;
+
+    if (key.startsWith('Arrow')) {
+      event.preventDefault();
+      if (visibleNodes.length === 0) return;
+
+      const currentIndex = selectedPath
+        ? visibleNodes.findIndex((item) => item.node.path === selectedPath)
+        : -1;
+      const normalizedIndex = currentIndex >= 0 ? currentIndex : 0;
+      const current = visibleNodes[normalizedIndex];
+
+      if (key === 'ArrowUp') {
+        const prevIndex =
+          normalizedIndex > 0 ? normalizedIndex - 1 : visibleNodes.length - 1;
+        setSelectedPath(visibleNodes[prevIndex].node.path);
+        return;
+      }
+
+      if (key === 'ArrowDown') {
+        const nextIndex =
+          normalizedIndex < visibleNodes.length - 1 ? normalizedIndex + 1 : 0;
+        setSelectedPath(visibleNodes[nextIndex].node.path);
+        return;
+      }
+
+      if (current?.node.type === 'folder') {
+        if (key === 'ArrowRight' && !expanded.has(current.node.path)) {
+          setExpanded((prev) => new Set(prev).add(current.node.path));
+        }
+        if (key === 'ArrowLeft' && expanded.has(current.node.path)) {
+          setExpanded((prev) => {
+            const next = new Set(prev);
+            next.delete(current.node.path);
+            return next;
+          });
+        }
+      }
+      return;
+    }
 
     if (key.length !== 1 || ctrlKey || metaKey || altKey) return;
 
@@ -155,6 +204,7 @@ export function FileExplorer() {
         </header>
 
         <div
+          ref={treeContainerRef}
           className="file-explorer__body"
           role="tree"
           aria-label="Project files"
@@ -199,7 +249,11 @@ export function FileExplorer() {
                       .filter(Boolean)
                       .join(' ')}
                     style={{ paddingLeft: INDENT + depth * INDENT }}
-                    onClick={() => onNodeClick(item)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      onNodeClick(item);
+                    }}
+                    tabIndex={-1}
                     ref={(el) => {
                       if (el) {
                         nodeRefs.current[node.path] = el;
