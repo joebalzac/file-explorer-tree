@@ -119,8 +119,9 @@ main {
 
 .file-explorer__node:hover,
 .file-explorer__node:focus-visible {
-  outline: none;
-  background: var(--accent-soft);
+  outline: 2px solid #90f5c0;
+  background-color: #50eb9f;
+  color: #022220;
 }
 
 .file-explorer__node--selected {

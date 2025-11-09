@@ -33,6 +33,7 @@ export function FileExplorer() {
 
   const [typeahead, setTypeahead] = useState<string>('');
   const typeaheadTimeoutRef = useRef<number | null>(null);
+  const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -70,10 +71,14 @@ export function FileExplorer() {
   const visibleNodes = tree ? flattenTree(tree, expanded) : [];
 
   useEffect(() => {
-    if (!selectedPath) {
-      return;
-    }
-  }, [selectedPath]);
+    if (!selectedPath) return;
+
+    const el = nodeRefs.current[selectedPath];
+    if (!el) return;
+
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ block: 'nearest' });
+  }, [selectedPath, visibleNodes]);
 
   const selectedNode = findNodeByPath(tree, selectedPath);
 
@@ -186,6 +191,13 @@ export function FileExplorer() {
                     .join(' ')}
                   style={{ paddingLeft: INDENT + depth * INDENT }}
                   onClick={() => onNodeClick(item)}
+                  ref={(el) => {
+                    if (el) {
+                      nodeRefs.current[node.path] = el;
+                    } else {
+                      delete nodeRefs.current[node.path];
+                    }
+                  }}
                 >
                   {isFolder ? (isExpanded ? '📂' : '📁') : '📄'} {node.name}
                 </button>
