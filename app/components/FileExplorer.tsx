@@ -2,28 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-type FileTreeNode = {
-  type: 'file' | 'folder';
-  name: string;
-  path: string;
-  children?: FileTreeNode[];
-  extension?: string;
-  sizeInBytes?: number;
-  modifiedAt?: string;
-};
-
-// NOTE: This type is intentionally loose. Refine it during the exercise to avoid
-// optional property checks sprinkled throughout the tree-handling logic.
+import type { TreeNode, FolderNode, FileNode } from '../../types/fileTree';
 
 type VisibleNode = {
-  node: FileTreeNode;
+  node: TreeNode;
   depth: number;
 };
 
 const INDENT = 20;
 
 export function FileExplorer() {
-  const [tree, setTree] = useState<FileTreeNode | null>(null);
+  const [tree, setTree] = useState<FolderNode | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(
@@ -46,7 +35,7 @@ export function FileExplorer() {
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`);
         }
-        const payload: FileTreeNode = await response.json();
+        const payload: FolderNode = await response.json();
         if (!cancelled) {
           setTree(payload);
           setError(null);
@@ -90,7 +79,7 @@ export function FileExplorer() {
     treeContainerRef.current?.focus();
   }, [selectedPath, visibleNodes]);
 
-  const countFiles = (node: FileTreeNode): number => {
+  const countFiles = (node: TreeNode): number => {
     if (node.type === 'file') return 1;
     return (node.children ?? []).reduce(
       (sum, child) => sum + countFiles(child),
@@ -302,15 +291,14 @@ export function FileExplorer() {
   );
 }
 
-function flattenTree(root: FileTreeNode, expanded: Set<string>): VisibleNode[] {
+function flattenTree(root: FolderNode, expanded: Set<string>): VisibleNode[] {
   const result: VisibleNode[] = [];
 
-  const visit = (node: FileTreeNode, depth: number) => {
+  const visit = (node: TreeNode, depth: number) => {
     result.push({ node, depth });
 
     if (node.type === 'folder' && expanded.has(node.path)) {
-      const children = Array.isArray(node.children) ? node.children : [];
-      children.forEach((child) => visit(child, depth + 1));
+      node.children.forEach((child) => visit(child, depth + 1));
     }
   };
 
@@ -320,9 +308,9 @@ function flattenTree(root: FileTreeNode, expanded: Set<string>): VisibleNode[] {
 }
 
 function findNodeByPath(
-  root: FileTreeNode | null,
+  root: FolderNode | null,
   path: string | null
-): FileTreeNode | null {
+): TreeNode | null {
   if (!root || !path) {
     return null;
   }
@@ -331,9 +319,7 @@ function findNodeByPath(
     return root;
   }
 
-  const stack: FileTreeNode[] = Array.isArray(root.children)
-    ? [...root.children]
-    : [];
+  const stack: TreeNode[] = root ? [...root.children] : [];
 
   while (stack.length > 0) {
     const current = stack.pop();
@@ -343,7 +329,7 @@ function findNodeByPath(
     if (current.path === path) {
       return current;
     }
-    if (current.type === 'folder' && Array.isArray(current.children)) {
+    if (current.type === 'folder') {
       stack.push(...current.children);
     }
   }
