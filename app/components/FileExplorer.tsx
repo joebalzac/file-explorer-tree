@@ -4,6 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { TreeNode, FolderNode, FileNode } from '../../types/fileTree';
 
+/**
+ * For handling large datasets (10,000+ nodes), I'd consider:
+ *
+ * 1. Virtualization with react-window - only render what's visible in the viewport
+ * 2. Memoizing flattenTree() and countFiles() to avoid recalculating on every render
+ * 3. Lazy loading folder contents when expanded rather than loading everything upfront
+ * 4. Debouncing the file watcher updates to batch rapid changes
+ * 5. Tracking which nodes actually changed and only updating those instead of the whole tree
+ */
+
 type VisibleNode = {
   node: TreeNode;
   depth: number;
@@ -29,7 +39,6 @@ export function FileExplorer() {
   const watcherConnectedRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Initial tree load
   useEffect(() => {
     let cancelled = false;
 
@@ -63,23 +72,19 @@ export function FileExplorer() {
     };
   }, []);
 
-  // Real-time file watcher via Server-Sent Events
   useEffect(() => {
-    // Only connect once after initial load is complete
     if (loading || !tree || watcherConnectedRef.current) return;
 
-    // Small delay to ensure page is fully loaded before connecting
     const connectTimer = setTimeout(() => {
       console.log('🔌 Connecting to file watcher...');
       watcherConnectedRef.current = true;
       const eventSource = new EventSource('/api/file-tree/watch');
       eventSourceRef.current = eventSource;
-      
-      // Check initial connection state
+
       if (eventSource.readyState === EventSource.OPEN) {
         setIsWatching(true);
       }
-      
+
       let isConnected = false;
       let reconnectAttempts = 0;
       const MAX_RECONNECT_ATTEMPTS = 5;
@@ -95,22 +100,22 @@ export function FileExplorer() {
             }
           } else if (data.type === 'update' && data.tree) {
             const newTree: FolderNode = data.tree;
-            
-            // Only update if tree actually changed (compare by structure)
+
             setTree((prevTree) => {
               if (!prevTree) {
                 setLastUpdateTime(new Date().toLocaleTimeString());
                 return newTree;
               }
-              
-              // Quick check: compare tree structure
+
               if (treesEqual(prevTree, newTree)) {
-                return prevTree; // No change, don't update
+                return prevTree;
               }
-              
-              console.log('🔄 File tree updated!', new Date().toLocaleTimeString());
-              
-              // Preserve expanded state for paths that still exist
+
+              console.log(
+                '🔄 File tree updated!',
+                new Date().toLocaleTimeString()
+              );
+
               setExpanded((prevExpanded) => {
                 const newExpanded = new Set<string>();
                 prevExpanded.forEach((path) => {
@@ -118,31 +123,26 @@ export function FileExplorer() {
                     newExpanded.add(path);
                   }
                 });
-                // Always keep root expanded
+
                 newExpanded.add('root');
                 return newExpanded;
               });
 
-              // Preserve selected path if it still exists
               setSelectedPath((prevPath) => {
                 if (prevPath && findNodeByPath(newTree, prevPath)) {
                   return prevPath;
                 }
-                return prevPath; // Keep selection even if node was deleted (could clear it if preferred)
+                return prevPath;
               });
 
-              // Update timestamp for visual indicator (format once, store as string)
               setLastUpdateTime(new Date().toLocaleTimeString());
-              
+
               return newTree;
             });
-            
-            // Ensure watching state stays true after updates
+
             setIsWatching(true);
           } else if (data.type === 'error') {
             console.error('❌ File watcher error:', data.message);
-            // Don't set error state here to avoid disrupting UI
-            // The tree is still functional, just not updating in real-time
           }
         } catch (err) {
           console.error('Failed to parse SSE message:', err);
@@ -150,38 +150,34 @@ export function FileExplorer() {
       };
 
       eventSource.onerror = () => {
-        // EventSource automatically reconnects
-        // Only set watching to false if connection is actually closed after max attempts
         if (eventSource.readyState === EventSource.CLOSED) {
           reconnectAttempts++;
           if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            console.warn('⚠️ File watcher connection failed after multiple attempts');
+            console.warn(
+              '⚠️ File watcher connection failed after multiple attempts'
+            );
             setIsWatching(false);
           }
-          // Don't set to false during reconnection attempts - let onopen handle it
         }
-        // If CONNECTING, don't change state - connection is in progress
       };
 
       eventSource.onopen = () => {
         console.log('✅ File watcher connection opened');
         setIsWatching(true);
         isConnected = true;
-        reconnectAttempts = 0; // Reset on successful connection
+        reconnectAttempts = 0;
       };
-
-    }, 100); // Small delay to ensure page is loaded
+    }, 100);
 
     return () => {
       clearTimeout(connectTimer);
-      // Clean up EventSource if it exists (only on unmount, not on tree updates)
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
         setIsWatching(false);
       }
     };
-  }, [loading]); // Only depend on loading - connect once when it finishes, not when tree updates
+  }, [loading]);
 
   const visibleNodes = tree ? flattenTree(tree, expanded) : [];
 
@@ -477,10 +473,6 @@ function findNodeByPath(
   return null;
 }
 
-/**
- * Compares two trees by structure (paths and names) ignoring metadata like timestamps.
- * Returns true if trees are structurally identical.
- */
 function treesEqual(a: FolderNode, b: FolderNode): boolean {
   if (a.path !== b.path || a.name !== b.name) {
     return false;
@@ -490,9 +482,12 @@ function treesEqual(a: FolderNode, b: FolderNode): boolean {
     return false;
   }
 
-  // Sort children by path for comparison
-  const aChildren = [...a.children].sort((x, y) => x.path.localeCompare(y.path));
-  const bChildren = [...b.children].sort((x, y) => x.path.localeCompare(y.path));
+  const aChildren = [...a.children].sort((x, y) =>
+    x.path.localeCompare(y.path)
+  );
+  const bChildren = [...b.children].sort((x, y) =>
+    x.path.localeCompare(y.path)
+  );
 
   for (let i = 0; i < aChildren.length; i++) {
     const aChild = aChildren[i];
