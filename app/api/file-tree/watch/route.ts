@@ -30,13 +30,12 @@ let lastTreeHash: string | null = null;
 /**
  * Real-time file tree updates via Server-Sent Events.
  *
- * I chose SSE over WebSockets because we only need one-way communication (server → client).
- * SSE is simpler - no extra dependencies, built-in browser support with EventSource, and it
- * handles reconnection automatically. WebSockets would be overkill here.
+ * SSE works well here since we only need one-way communication from server to client.
+ * It's built into browsers with EventSource, handles reconnection automatically, and keeps
+ * the implementation simple with zero dependencies.
  *
- * For file watching, I'm using Node's built-in fs.watch instead of chokidar. It's zero
- * dependencies and works well for watching a single directory tree. chokidar is great but
- * adds unnecessary complexity for this use case.
+ * For file watching, I'm using Node's built-in fs.watch. It's zero dependencies and works
+ * well for watching a single directory tree recursively.
  */
 export async function GET(request: NextRequest) {
   const stream = new ReadableStream({
@@ -73,11 +72,6 @@ export async function GET(request: NextRequest) {
   });
 }
 
-/**
- * Sets up a file watcher on the tree directory.
- * Uses recursive watching (Node.js 20+) to watch the entire subtree.
- * This is a singleton - only one watcher is created and shared across all clients.
- */
 function setupFileWatcher() {
   fs.mkdir(path.dirname(TREE_ROOT_DIRECTORY), { recursive: true })
     .then(() => {
