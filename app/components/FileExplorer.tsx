@@ -19,12 +19,17 @@ export function FileExplorer() {
     () => new Set(['root'])
   );
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
+  const [isWatching, setIsWatching] = useState(false);
 
   const [typeahead, setTypeahead] = useState<string>('');
   const typeaheadTimeoutRef = useRef<number | null>(null);
   const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const treeContainerRef = useRef<HTMLDivElement>(null);
+  const watcherConnectedRef = useRef(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Initial tree load
   useEffect(() => {
     let cancelled = false;
 
@@ -57,6 +62,126 @@ export function FileExplorer() {
       cancelled = true;
     };
   }, []);
+
+  // Real-time file watcher via Server-Sent Events
+  useEffect(() => {
+    // Only connect once after initial load is complete
+    if (loading || !tree || watcherConnectedRef.current) return;
+
+    // Small delay to ensure page is fully loaded before connecting
+    const connectTimer = setTimeout(() => {
+      console.log('🔌 Connecting to file watcher...');
+      watcherConnectedRef.current = true;
+      const eventSource = new EventSource('/api/file-tree/watch');
+      eventSourceRef.current = eventSource;
+      
+      // Check initial connection state
+      if (eventSource.readyState === EventSource.OPEN) {
+        setIsWatching(true);
+      }
+      
+      let isConnected = false;
+      let reconnectAttempts = 0;
+      const MAX_RECONNECT_ATTEMPTS = 5;
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'connected') {
+            if (!isConnected) {
+              console.log('✅ File watcher connected');
+              isConnected = true;
+            }
+          } else if (data.type === 'update' && data.tree) {
+            const newTree: FolderNode = data.tree;
+            
+            // Only update if tree actually changed (compare by structure)
+            setTree((prevTree) => {
+              if (!prevTree) {
+                setLastUpdateTime(new Date().toLocaleTimeString());
+                return newTree;
+              }
+              
+              // Quick check: compare tree structure
+              if (treesEqual(prevTree, newTree)) {
+                return prevTree; // No change, don't update
+              }
+              
+              console.log('🔄 File tree updated!', new Date().toLocaleTimeString());
+              
+              // Preserve expanded state for paths that still exist
+              setExpanded((prevExpanded) => {
+                const newExpanded = new Set<string>();
+                prevExpanded.forEach((path) => {
+                  if (findNodeByPath(newTree, path)) {
+                    newExpanded.add(path);
+                  }
+                });
+                // Always keep root expanded
+                newExpanded.add('root');
+                return newExpanded;
+              });
+
+              // Preserve selected path if it still exists
+              setSelectedPath((prevPath) => {
+                if (prevPath && findNodeByPath(newTree, prevPath)) {
+                  return prevPath;
+                }
+                return prevPath; // Keep selection even if node was deleted (could clear it if preferred)
+              });
+
+              // Update timestamp for visual indicator (format once, store as string)
+              setLastUpdateTime(new Date().toLocaleTimeString());
+              
+              return newTree;
+            });
+            
+            // Ensure watching state stays true after updates
+            setIsWatching(true);
+          } else if (data.type === 'error') {
+            console.error('❌ File watcher error:', data.message);
+            // Don't set error state here to avoid disrupting UI
+            // The tree is still functional, just not updating in real-time
+          }
+        } catch (err) {
+          console.error('Failed to parse SSE message:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        // EventSource automatically reconnects
+        // Only set watching to false if connection is actually closed after max attempts
+        if (eventSource.readyState === EventSource.CLOSED) {
+          reconnectAttempts++;
+          if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.warn('⚠️ File watcher connection failed after multiple attempts');
+            setIsWatching(false);
+          }
+          // Don't set to false during reconnection attempts - let onopen handle it
+        }
+        // If CONNECTING, don't change state - connection is in progress
+      };
+
+      eventSource.onopen = () => {
+        console.log('✅ File watcher connection opened');
+        setIsWatching(true);
+        isConnected = true;
+        reconnectAttempts = 0; // Reset on successful connection
+      };
+
+    }, 100); // Small delay to ensure page is loaded
+
+    return () => {
+      clearTimeout(connectTimer);
+      // Clean up EventSource if it exists (only on unmount, not on tree updates)
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+        setIsWatching(false);
+      }
+    };
+  }, [loading]); // Only depend on loading - connect once when it finishes, not when tree updates
 
   const visibleNodes = tree ? flattenTree(tree, expanded) : [];
 
@@ -190,6 +315,21 @@ export function FileExplorer() {
           <p className="file-explorer__hint">
             Enhance this view with keyboard type-ahead support.
           </p>
+          <div className="file-explorer__watcher-status">
+            <span
+              className={`file-explorer__watcher-indicator ${
+                isWatching ? 'file-explorer__watcher-indicator--active' : ''
+              }`}
+            />
+            <span>
+              {isWatching ? 'Watching for changes' : 'Not watching'}
+              {lastUpdateTime && (
+                <span className="file-explorer__watcher-time">
+                  {' • '}Last update: {lastUpdateTime}
+                </span>
+              )}
+            </span>
+          </div>
         </header>
 
         <div
@@ -335,4 +475,39 @@ function findNodeByPath(
   }
 
   return null;
+}
+
+/**
+ * Compares two trees by structure (paths and names) ignoring metadata like timestamps.
+ * Returns true if trees are structurally identical.
+ */
+function treesEqual(a: FolderNode, b: FolderNode): boolean {
+  if (a.path !== b.path || a.name !== b.name) {
+    return false;
+  }
+
+  if (a.children.length !== b.children.length) {
+    return false;
+  }
+
+  // Sort children by path for comparison
+  const aChildren = [...a.children].sort((x, y) => x.path.localeCompare(y.path));
+  const bChildren = [...b.children].sort((x, y) => x.path.localeCompare(y.path));
+
+  for (let i = 0; i < aChildren.length; i++) {
+    const aChild = aChildren[i];
+    const bChild = bChildren[i];
+
+    if (aChild.path !== bChild.path || aChild.name !== bChild.name) {
+      return false;
+    }
+
+    if (aChild.type === 'folder' && bChild.type === 'folder') {
+      if (!treesEqual(aChild, bChild)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }

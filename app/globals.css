@@ -84,6 +84,42 @@ main {
   color: var(--muted);
   font-size: 0.85rem;
 }
+
+.file-explorer__watcher-status {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-explorer__watcher-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--muted);
+  transition: background-color 0.2s ease;
+}
+
+.file-explorer__watcher-indicator--active {
+  background-color: #4caf50;
+  animation: pulse 2s infinite;
+}
+
+.file-explorer__watcher-time {
+  color: var(--muted);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
 .file-explorer__body {
   flex: 1;
   overflow: auto;
