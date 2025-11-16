@@ -37,6 +37,8 @@ export function FileExplorer() {
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
 
+  const debounceTimeoutRef = useRef<number | null>(null);
+
   const [typeahead, setTypeahead] = useState<string>('');
   const typeaheadTimeoutRef = useRef<number | null>(null);
   const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -106,55 +108,63 @@ export function FileExplorer() {
           } else if (data.type === 'update' && data.tree) {
             const newTree: FolderNode = data.tree;
 
-            setTree((prevTree) => {
-              if (!prevTree) {
-                setLastUpdateTime(new Date().toLocaleTimeString());
-                return newTree;
-              }
+            if (debounceTimeoutRef.current !== null) {
+              clearTimeout(debounceTimeoutRef.current);
+            }
 
-              if (treesEqual(prevTree, newTree)) {
-                return prevTree;
-              }
-
-              console.log(
-                '🔄 File tree updated!',
-                new Date().toLocaleTimeString()
-              );
-
-              setExpanded((prevExpanded) => {
-                const newExpanded = new Set<string>();
-                prevExpanded.forEach((path) => {
-                  if (findNodeByPath(newTree, path)) {
-                    newExpanded.add(path);
-                  }
-                });
-
-                newExpanded.add('root');
-                return newExpanded;
-              });
-
-              setLoadedFolders((prevLoaded) => {
-                const newLoaded = new Set<string>();
-                prevLoaded.forEach((path) => {
-                  if (findNodeByPath(newTree, path)) {
-                    newLoaded.add(path);
-                  }
-                });
-                newLoaded.add('root');
-                return newLoaded;
-              });
-
-              setSelectedPath((prevPath) => {
-                if (prevPath && findNodeByPath(newTree, prevPath)) {
-                  return prevPath;
+            debounceTimeoutRef.current = window.setTimeout(() => {
+              setTree((prevTree) => {
+                if (!prevTree) {
+                  setLastUpdateTime(new Date().toLocaleTimeString());
+                  return newTree;
                 }
-                return prevPath;
+
+                if (treesEqual(prevTree, newTree)) {
+                  return prevTree;
+                }
+
+                console.log(
+                  '🔄 File tree updated!',
+                  new Date().toLocaleTimeString()
+                );
+
+                setExpanded((prevExpanded) => {
+                  const newExpanded = new Set<string>();
+                  prevExpanded.forEach((path) => {
+                    if (findNodeByPath(newTree, path)) {
+                      newExpanded.add(path);
+                    }
+                  });
+
+                  newExpanded.add('root');
+                  return newExpanded;
+                });
+
+                setLoadedFolders((prevLoaded) => {
+                  const newLoaded = new Set<string>();
+                  prevLoaded.forEach((path) => {
+                    if (findNodeByPath(newTree, path)) {
+                      newLoaded.add(path);
+                    }
+                  });
+                  newLoaded.add('root');
+                  return newLoaded;
+                });
+
+                setSelectedPath((prevPath) => {
+                  if (prevPath && findNodeByPath(newTree, prevPath)) {
+                    return prevPath;
+                  }
+                  return prevPath;
+                });
+
+                setLastUpdateTime(new Date().toLocaleTimeString());
+
+                return newTree;
               });
 
-              setLastUpdateTime(new Date().toLocaleTimeString());
-
-              return newTree;
-            });
+              debounceTimeoutRef.current = null;
+            }, 150);
 
             setIsWatching(true);
           } else if (data.type === 'error') {
@@ -187,6 +197,9 @@ export function FileExplorer() {
 
     return () => {
       clearTimeout(connectTimer);
+      if (debounceTimeoutRef.current !== null) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
