@@ -28,6 +28,11 @@ export function FileExplorer() {
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(['root'])
   );
+
+  const [loadedFolders, setLoadedFolders] = useState<Set<string>>(
+    () => new Set(['root'])
+  );
+
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
@@ -128,6 +133,17 @@ export function FileExplorer() {
                 return newExpanded;
               });
 
+              setLoadedFolders((prevLoaded) => {
+                const newLoaded = new Set<string>();
+                prevLoaded.forEach((path) => {
+                  if (findNodeByPath(newTree, path)) {
+                    newLoaded.add(path);
+                  }
+                });
+                newLoaded.add('root');
+                return newLoaded;
+              });
+
               setSelectedPath((prevPath) => {
                 if (prevPath && findNodeByPath(newTree, prevPath)) {
                   return prevPath;
@@ -179,7 +195,7 @@ export function FileExplorer() {
     };
   }, [loading]);
 
-  const visibleNodes = tree ? flattenTree(tree, expanded) : [];
+  const visibleNodes = tree ? flattenTree(tree, expanded, loadedFolders) : [];
 
   useEffect(() => {
     if (!loading && !error && tree) {
@@ -220,6 +236,9 @@ export function FileExplorer() {
           newSet.delete(target.path);
         } else {
           newSet.add(target.path);
+          setLoadedFolders((prevLoaded) =>
+            new Set(prevLoaded).add(target.path)
+          );
         }
         return newSet;
       });
@@ -259,6 +278,7 @@ export function FileExplorer() {
       if (current?.node.type === 'folder') {
         if (key === 'ArrowRight' && !expanded.has(current.node.path)) {
           setExpanded((prev) => new Set(prev).add(current.node.path));
+          setLoadedFolders((prev) => new Set(prev).add(current.node.path));
         }
         if (key === 'ArrowLeft' && expanded.has(current.node.path)) {
           setExpanded((prev) => {
@@ -427,13 +447,21 @@ export function FileExplorer() {
   );
 }
 
-function flattenTree(root: FolderNode, expanded: Set<string>): VisibleNode[] {
+function flattenTree(
+  root: FolderNode,
+  expanded: Set<string>,
+  loadedFolders: Set<string>
+): VisibleNode[] {
   const result: VisibleNode[] = [];
 
   const visit = (node: TreeNode, depth: number) => {
     result.push({ node, depth });
 
-    if (node.type === 'folder' && expanded.has(node.path)) {
+    if (
+      node.type === 'folder' &&
+      expanded.has(node.path) &&
+      loadedFolders.has(node.path)
+    ) {
       node.children.forEach((child) => visit(child, depth + 1));
     }
   };
