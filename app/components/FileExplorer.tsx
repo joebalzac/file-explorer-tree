@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TreeNode, FolderNode, FileNode } from '../../types/fileTree';
 
@@ -195,7 +195,10 @@ export function FileExplorer() {
     };
   }, [loading]);
 
-  const visibleNodes = tree ? flattenTree(tree, expanded, loadedFolders) : [];
+  const visibleNodes = useMemo(
+    () => (tree ? flattenTree(tree, expanded, loadedFolders) : []),
+    [tree, expanded, loadedFolders]
+  );
 
   useEffect(() => {
     if (!loading && !error && tree) {
@@ -216,13 +219,13 @@ export function FileExplorer() {
     treeContainerRef.current?.focus();
   }, [selectedPath, visibleNodes]);
 
-  const countFiles = (node: TreeNode): number => {
+  const countFiles = useCallback((node: TreeNode): number => {
     if (node.type === 'file') return 1;
     return (node.children ?? []).reduce(
       (sum, child) => sum + countFiles(child),
       0
     );
-  };
+  }, []);
 
   const selectedNode = findNodeByPath(tree, selectedPath);
 
