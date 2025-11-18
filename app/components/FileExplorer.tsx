@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { TreeNode, FolderNode, FileNode } from '../../types/fileTree';
 
@@ -28,16 +28,9 @@ export function FileExplorer() {
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(['root'])
   );
-
-  const [loadedFolders, setLoadedFolders] = useState<Set<string>>(
-    () => new Set(['root'])
-  );
-
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
-
-  const debounceTimeoutRef = useRef<number | null>(null);
 
   const [typeahead, setTypeahead] = useState<string>('');
   const typeaheadTimeoutRef = useRef<number | null>(null);
@@ -108,63 +101,44 @@ export function FileExplorer() {
           } else if (data.type === 'update' && data.tree) {
             const newTree: FolderNode = data.tree;
 
-            if (debounceTimeoutRef.current !== null) {
-              clearTimeout(debounceTimeoutRef.current);
-            }
-
-            debounceTimeoutRef.current = window.setTimeout(() => {
-              setTree((prevTree) => {
-                if (!prevTree) {
-                  setLastUpdateTime(new Date().toLocaleTimeString());
-                  return newTree;
-                }
-
-                if (treesEqual(prevTree, newTree)) {
-                  return prevTree;
-                }
-
-                console.log(
-                  '🔄 File tree updated!',
-                  new Date().toLocaleTimeString()
-                );
-
-                setExpanded((prevExpanded) => {
-                  const newExpanded = new Set<string>();
-                  prevExpanded.forEach((path) => {
-                    if (findNodeByPath(newTree, path)) {
-                      newExpanded.add(path);
-                    }
-                  });
-
-                  newExpanded.add('root');
-                  return newExpanded;
-                });
-
-                setLoadedFolders((prevLoaded) => {
-                  const newLoaded = new Set<string>();
-                  prevLoaded.forEach((path) => {
-                    if (findNodeByPath(newTree, path)) {
-                      newLoaded.add(path);
-                    }
-                  });
-                  newLoaded.add('root');
-                  return newLoaded;
-                });
-
-                setSelectedPath((prevPath) => {
-                  if (prevPath && findNodeByPath(newTree, prevPath)) {
-                    return prevPath;
-                  }
-                  return prevPath;
-                });
-
+            setTree((prevTree) => {
+              if (!prevTree) {
                 setLastUpdateTime(new Date().toLocaleTimeString());
-
                 return newTree;
+              }
+
+              if (treesEqual(prevTree, newTree)) {
+                return prevTree;
+              }
+
+              console.log(
+                '🔄 File tree updated!',
+                new Date().toLocaleTimeString()
+              );
+
+              setExpanded((prevExpanded) => {
+                const newExpanded = new Set<string>();
+                prevExpanded.forEach((path) => {
+                  if (findNodeByPath(newTree, path)) {
+                    newExpanded.add(path);
+                  }
+                });
+
+                newExpanded.add('root');
+                return newExpanded;
               });
 
-              debounceTimeoutRef.current = null;
-            }, 150);
+              setSelectedPath((prevPath) => {
+                if (prevPath && findNodeByPath(newTree, prevPath)) {
+                  return prevPath;
+                }
+                return prevPath;
+              });
+
+              setLastUpdateTime(new Date().toLocaleTimeString());
+
+              return newTree;
+            });
 
             setIsWatching(true);
           } else if (data.type === 'error') {
@@ -197,9 +171,6 @@ export function FileExplorer() {
 
     return () => {
       clearTimeout(connectTimer);
-      if (debounceTimeoutRef.current !== null) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
@@ -208,10 +179,7 @@ export function FileExplorer() {
     };
   }, [loading]);
 
-  const visibleNodes = useMemo(
-    () => (tree ? flattenTree(tree, expanded, loadedFolders) : []),
-    [tree, expanded, loadedFolders]
-  );
+  const visibleNodes = tree ? flattenTree(tree, expanded) : [];
 
   useEffect(() => {
     if (!loading && !error && tree) {
@@ -232,13 +200,13 @@ export function FileExplorer() {
     treeContainerRef.current?.focus();
   }, [selectedPath, visibleNodes]);
 
-  const countFiles = useCallback((node: TreeNode): number => {
+  const countFiles = (node: TreeNode): number => {
     if (node.type === 'file') return 1;
     return (node.children ?? []).reduce(
       (sum, child) => sum + countFiles(child),
       0
     );
-  }, []);
+  };
 
   const selectedNode = findNodeByPath(tree, selectedPath);
 
@@ -252,9 +220,6 @@ export function FileExplorer() {
           newSet.delete(target.path);
         } else {
           newSet.add(target.path);
-          setLoadedFolders((prevLoaded) =>
-            new Set(prevLoaded).add(target.path)
-          );
         }
         return newSet;
       });
@@ -294,7 +259,6 @@ export function FileExplorer() {
       if (current?.node.type === 'folder') {
         if (key === 'ArrowRight' && !expanded.has(current.node.path)) {
           setExpanded((prev) => new Set(prev).add(current.node.path));
-          setLoadedFolders((prev) => new Set(prev).add(current.node.path));
         }
         if (key === 'ArrowLeft' && expanded.has(current.node.path)) {
           setExpanded((prev) => {
@@ -463,21 +427,13 @@ export function FileExplorer() {
   );
 }
 
-function flattenTree(
-  root: FolderNode,
-  expanded: Set<string>,
-  loadedFolders: Set<string>
-): VisibleNode[] {
+function flattenTree(root: FolderNode, expanded: Set<string>): VisibleNode[] {
   const result: VisibleNode[] = [];
 
   const visit = (node: TreeNode, depth: number) => {
     result.push({ node, depth });
 
-    if (
-      node.type === 'folder' &&
-      expanded.has(node.path) &&
-      loadedFolders.has(node.path)
-    ) {
+    if (node.type === 'folder' && expanded.has(node.path)) {
       node.children.forEach((child) => visit(child, depth + 1));
     }
   };
