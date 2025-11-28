@@ -437,10 +437,7 @@ export function FileExplorer() {
                     borderBottom:
                       path === activeTab ? '2px solid var(--accent)' : 'none',
                     cursor: 'pointer',
-                    color:
-                      path === activeTab
-                        ? 'var(--text)'
-                        : 'var(--muted), var(--italicized)',
+                    color: path === activeTab ? 'var(--text)' : 'var(--muted)',
                     fontStyle: path === activeTab ? 'normal' : 'italic',
                   }}
                 >
