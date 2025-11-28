@@ -32,6 +32,9 @@ export function FileExplorer() {
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
 
+  const [openTabs, setOpenTabs] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
   const [typeahead, setTypeahead] = useState<string>('');
   const typeaheadTimeoutRef = useRef<number | null>(null);
   const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -225,6 +228,14 @@ export function FileExplorer() {
       });
     }
 
+    if (target.type === 'file') {
+      if (!openTabs.includes(target.path)) {
+        setOpenTabs([...openTabs, target.path]);
+      }
+
+      setActiveTab(target.path);
+    }
+
     setSelectedPath(target.path);
     setTree((prev) => (prev ? { ...prev } : prev));
   };
@@ -402,20 +413,61 @@ export function FileExplorer() {
         className="file-explorer__details"
         aria-label="Selected item details"
       >
-        {selectedNode ? (
-          <div>
-            <h2 className="file-explorer__details-title">
-              {selectedNode.name}
-            </h2>
-            <dl className="file-explorer__details-grid">
-              <dt>Path</dt>
-              <dd>{selectedNode.path}</dd>
-            </dl>
-            <p className="file-explorer__next-step">
-              Flesh this panel out with richer insights derived from the data
-              source.
-            </p>
+        {openTabs.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              borderBottom: '1px solid var(--border)',
+              marginBottom: '1rem',
+            }}
+          >
+            {openTabs.map((path) => {
+              const tabNode = findNodeByPath(tree, path);
+              return (
+                <button
+                  key={path}
+                  onClick={() => setActiveTab(path)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    border: 'none',
+                    background:
+                      path === activeTab
+                        ? 'var(--surface-accent)'
+                        : 'transparent',
+                    borderBottom:
+                      path === activeTab ? '2px solid var(--accent)' : 'none',
+                    cursor: 'pointer',
+                    color:
+                      path === activeTab
+                        ? 'var(--text)'
+                        : 'var(--muted), var(--italicized)',
+                    fontStyle: path === activeTab ? 'normal' : 'italic',
+                  }}
+                >
+                  {tabNode?.name}
+                </button>
+              );
+            })}
           </div>
+        )}
+
+        {activeTab ? (
+          (() => {
+            const node = findNodeByPath(tree, activeTab);
+            return node ? (
+              <div>
+                <h2 className="file-explorer__details-title">{node.name}</h2>
+                <dl className="file-explorer__details-grid">
+                  <dt>Path</dt>
+                  <dd>{node.path}</dd>
+                </dl>
+                <p className="file-explorer__next-step">
+                  Flesh this panel out with richer insights derived from the
+                  data source.
+                </p>
+              </div>
+            ) : null;
+          })()
         ) : (
           <div className="file-explorer__placeholder">
             <h2>Select an item</h2>
