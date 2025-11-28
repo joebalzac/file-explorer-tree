@@ -113,7 +113,8 @@ main {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -191,6 +192,39 @@ main {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.file-explorer__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+.file-explorer__tab {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-style: italic;
+  transition: background-color 120ms ease, color 120ms ease,
+    font-style 120ms ease;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.file-explorer__tab:hover {
+  background: var(--surface-accent);
+  color: var(--text);
+}
+
+.file-explorer__tab--active {
+  background: var(--surface-accent);
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-style: normal;
 }
 
 .file-explorer__details-title {
