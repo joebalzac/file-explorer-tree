@@ -32,9 +32,6 @@ export function FileExplorer() {
   const [lastUpdateTime, setLastUpdateTime] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
 
-  const [openTabs, setOpenTabs] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<string | null>(null);
-
   const [typeahead, setTypeahead] = useState<string>('');
   const typeaheadTimeoutRef = useRef<number | null>(null);
   const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
