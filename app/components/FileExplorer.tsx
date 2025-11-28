@@ -225,14 +225,7 @@ export function FileExplorer() {
       });
     }
 
-    if (target.type === 'file') {
-      if (!openTabs.includes(target.path)) {
-        setOpenTabs([...openTabs, target.path]);
-      }
-
-      setActiveTab(target.path);
-    }
-
+ 
     setSelectedPath(target.path);
     setTree((prev) => (prev ? { ...prev } : prev));
   };
